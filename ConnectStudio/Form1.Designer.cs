@@ -29,15 +29,15 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            Sgry.Azuki.FontInfo fontInfo1 = new Sgry.Azuki.FontInfo();
-            Sgry.Azuki.FontInfo fontInfo2 = new Sgry.Azuki.FontInfo();
+            Sgry.Azuki.FontInfo fontInfo5 = new Sgry.Azuki.FontInfo();
+            Sgry.Azuki.FontInfo fontInfo6 = new Sgry.Azuki.FontInfo();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
+            this.processComboBox = new System.Windows.Forms.ComboBox();
             this.canvas = new System.Windows.Forms.PictureBox();
             this.appListView = new System.Windows.Forms.ListView();
             this.flowLayoutPanel1 = new System.Windows.Forms.FlowLayoutPanel();
             this.srcIconTitle = new System.Windows.Forms.Label();
-            this.srcProcessComboBox = new System.Windows.Forms.ComboBox();
             this.radioContextMenu = new System.Windows.Forms.RadioButton();
             this.textBoxContextMenu = new System.Windows.Forms.TextBox();
             this.radioHotKey = new System.Windows.Forms.RadioButton();
@@ -66,7 +66,6 @@
             this.virtualContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
-            this.dstProcessComboBox = new System.Windows.Forms.ComboBox();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -95,7 +94,7 @@
             // 
             this.splitContainer1.Panel2.Controls.Add(this.flowLayoutPanel1);
             this.splitContainer1.Panel2.Controls.Add(this.applyActionHandlerButton);
-            this.splitContainer1.Size = new System.Drawing.Size(1105, 680);
+            this.splitContainer1.Size = new System.Drawing.Size(1105, 565);
             this.splitContainer1.SplitterDistance = 628;
             this.splitContainer1.TabIndex = 0;
             // 
@@ -108,14 +107,25 @@
             // 
             // splitContainer2.Panel1
             // 
+            this.splitContainer2.Panel1.Controls.Add(this.processComboBox);
             this.splitContainer2.Panel1.Controls.Add(this.canvas);
             // 
             // splitContainer2.Panel2
             // 
             this.splitContainer2.Panel2.Controls.Add(this.appListView);
-            this.splitContainer2.Size = new System.Drawing.Size(628, 680);
-            this.splitContainer2.SplitterDistance = 443;
+            this.splitContainer2.Size = new System.Drawing.Size(628, 565);
+            this.splitContainer2.SplitterDistance = 306;
             this.splitContainer2.TabIndex = 1;
+            // 
+            // processComboBox
+            // 
+            this.processComboBox.FormattingEnabled = true;
+            this.processComboBox.Location = new System.Drawing.Point(12, 3);
+            this.processComboBox.Name = "processComboBox";
+            this.processComboBox.Size = new System.Drawing.Size(151, 20);
+            this.processComboBox.TabIndex = 1;
+            this.processComboBox.DropDown += new System.EventHandler(this.processComboBox_DropDown);
+            this.processComboBox.SelectedIndexChanged += new System.EventHandler(this.processComboBox_SelectedIndexChanged);
             // 
             // canvas
             // 
@@ -123,23 +133,20 @@
             this.canvas.Dock = System.Windows.Forms.DockStyle.Fill;
             this.canvas.Location = new System.Drawing.Point(0, 0);
             this.canvas.Name = "canvas";
-            this.canvas.Size = new System.Drawing.Size(628, 443);
+            this.canvas.Size = new System.Drawing.Size(628, 306);
             this.canvas.TabIndex = 0;
             this.canvas.TabStop = false;
-            this.canvas.DragDrop += new System.Windows.Forms.DragEventHandler(this.canvas_DragDrop);
-            this.canvas.DragEnter += new System.Windows.Forms.DragEventHandler(this.canvas_DragEnter);
             this.canvas.Paint += new System.Windows.Forms.PaintEventHandler(this.canvas_Paint);
             this.canvas.MouseClick += new System.Windows.Forms.MouseEventHandler(this.canvas_MouseClick);
-            this.canvas.MouseDown += new System.Windows.Forms.MouseEventHandler(this.canvas_MouseDown);
+            this.canvas.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.canvas_MouseDoubleClick);
             this.canvas.MouseMove += new System.Windows.Forms.MouseEventHandler(this.canvas_MouseMove);
-            this.canvas.MouseUp += new System.Windows.Forms.MouseEventHandler(this.canvas_MouseUp);
             // 
             // appListView
             // 
             this.appListView.Dock = System.Windows.Forms.DockStyle.Fill;
             this.appListView.Location = new System.Drawing.Point(0, 0);
             this.appListView.Name = "appListView";
-            this.appListView.Size = new System.Drawing.Size(628, 233);
+            this.appListView.Size = new System.Drawing.Size(628, 255);
             this.appListView.TabIndex = 0;
             this.appListView.UseCompatibleStateImageBehavior = false;
             this.appListView.Click += new System.EventHandler(this.appListView_Click);
@@ -150,7 +157,6 @@
             this.flowLayoutPanel1.AutoSize = true;
             this.flowLayoutPanel1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             this.flowLayoutPanel1.Controls.Add(this.srcIconTitle);
-            this.flowLayoutPanel1.Controls.Add(this.srcProcessComboBox);
             this.flowLayoutPanel1.Controls.Add(this.radioContextMenu);
             this.flowLayoutPanel1.Controls.Add(this.textBoxContextMenu);
             this.flowLayoutPanel1.Controls.Add(this.radioHotKey);
@@ -159,13 +165,12 @@
             this.flowLayoutPanel1.Controls.Add(this.srcScript);
             this.flowLayoutPanel1.Controls.Add(this.splitter1);
             this.flowLayoutPanel1.Controls.Add(this.dstIconTitle);
-            this.flowLayoutPanel1.Controls.Add(this.dstProcessComboBox);
             this.flowLayoutPanel1.Controls.Add(this.dstScript);
             this.flowLayoutPanel1.FlowDirection = System.Windows.Forms.FlowDirection.TopDown;
             this.flowLayoutPanel1.Font = new System.Drawing.Font("ＭＳ ゴシック", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(128)));
             this.flowLayoutPanel1.Location = new System.Drawing.Point(3, 3);
             this.flowLayoutPanel1.Name = "flowLayoutPanel1";
-            this.flowLayoutPanel1.Size = new System.Drawing.Size(463, 565);
+            this.flowLayoutPanel1.Size = new System.Drawing.Size(463, 505);
             this.flowLayoutPanel1.TabIndex = 0;
             // 
             // srcIconTitle
@@ -173,35 +178,26 @@
             this.srcIconTitle.ImageAlign = System.Drawing.ContentAlignment.TopLeft;
             this.srcIconTitle.Location = new System.Drawing.Point(3, 0);
             this.srcIconTitle.Name = "srcIconTitle";
-            this.srcIconTitle.Size = new System.Drawing.Size(300, 64);
+            this.srcIconTitle.Size = new System.Drawing.Size(454, 64);
             this.srcIconTitle.TabIndex = 0;
             this.srcIconTitle.TextAlign = System.Drawing.ContentAlignment.BottomLeft;
-            // 
-            // srcProcessComboBox
-            // 
-            this.srcProcessComboBox.FormattingEnabled = true;
-            this.srcProcessComboBox.Location = new System.Drawing.Point(3, 67);
-            this.srcProcessComboBox.Name = "srcProcessComboBox";
-            this.srcProcessComboBox.Size = new System.Drawing.Size(436, 24);
-            this.srcProcessComboBox.TabIndex = 15;
-            this.srcProcessComboBox.DropDown += new System.EventHandler(this.srcProcessComboBox_DropDown);
-            this.srcProcessComboBox.SelectedIndexChanged += new System.EventHandler(this.srcProcessComboBox_SelectedIndexChanged);
             // 
             // radioContextMenu
             // 
             this.radioContextMenu.AutoSize = true;
             this.radioContextMenu.Checked = true;
-            this.radioContextMenu.Location = new System.Drawing.Point(3, 97);
+            this.radioContextMenu.Location = new System.Drawing.Point(3, 67);
             this.radioContextMenu.Name = "radioContextMenu";
             this.radioContextMenu.Size = new System.Drawing.Size(114, 20);
             this.radioContextMenu.TabIndex = 14;
             this.radioContextMenu.TabStop = true;
             this.radioContextMenu.Text = "ContextMenu";
             this.radioContextMenu.UseVisualStyleBackColor = true;
+            this.radioContextMenu.CheckedChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // textBoxContextMenu
             // 
-            this.textBoxContextMenu.Location = new System.Drawing.Point(3, 123);
+            this.textBoxContextMenu.Location = new System.Drawing.Point(3, 93);
             this.textBoxContextMenu.Name = "textBoxContextMenu";
             this.textBoxContextMenu.Size = new System.Drawing.Size(436, 23);
             this.textBoxContextMenu.TabIndex = 1;
@@ -209,12 +205,13 @@
             // radioHotKey
             // 
             this.radioHotKey.AutoSize = true;
-            this.radioHotKey.Location = new System.Drawing.Point(3, 152);
+            this.radioHotKey.Location = new System.Drawing.Point(3, 122);
             this.radioHotKey.Name = "radioHotKey";
             this.radioHotKey.Size = new System.Drawing.Size(74, 20);
             this.radioHotKey.TabIndex = 13;
             this.radioHotKey.Text = "HotKey";
             this.radioHotKey.UseVisualStyleBackColor = true;
+            this.radioHotKey.CheckedChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // flowLayoutPanel7
             // 
@@ -224,7 +221,7 @@
             this.flowLayoutPanel7.Controls.Add(this.ShiftCheckBoxHotKey);
             this.flowLayoutPanel7.Controls.Add(this.FnCheckBoxHotKey);
             this.flowLayoutPanel7.Controls.Add(this.keyComboBoxHotKey);
-            this.flowLayoutPanel7.Location = new System.Drawing.Point(0, 175);
+            this.flowLayoutPanel7.Location = new System.Drawing.Point(0, 145);
             this.flowLayoutPanel7.Margin = new System.Windows.Forms.Padding(0);
             this.flowLayoutPanel7.Name = "flowLayoutPanel7";
             this.flowLayoutPanel7.Size = new System.Drawing.Size(457, 28);
@@ -239,6 +236,7 @@
             this.CtrlCheckBoxHotKey.TabIndex = 5;
             this.CtrlCheckBoxHotKey.Text = "Ctrl";
             this.CtrlCheckBoxHotKey.UseVisualStyleBackColor = true;
+            this.CtrlCheckBoxHotKey.CheckedChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // AltCheckBoxHotKey
             // 
@@ -250,6 +248,7 @@
             this.AltCheckBoxHotKey.TabIndex = 6;
             this.AltCheckBoxHotKey.Text = "Alt";
             this.AltCheckBoxHotKey.UseVisualStyleBackColor = true;
+            this.AltCheckBoxHotKey.CheckedChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // WinCheckBoxHotKey
             // 
@@ -261,6 +260,7 @@
             this.WinCheckBoxHotKey.TabIndex = 7;
             this.WinCheckBoxHotKey.Text = "Win";
             this.WinCheckBoxHotKey.UseVisualStyleBackColor = true;
+            this.WinCheckBoxHotKey.CheckedChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // ShiftCheckBoxHotKey
             // 
@@ -272,6 +272,7 @@
             this.ShiftCheckBoxHotKey.TabIndex = 8;
             this.ShiftCheckBoxHotKey.Text = "Shift";
             this.ShiftCheckBoxHotKey.UseVisualStyleBackColor = true;
+            this.ShiftCheckBoxHotKey.CheckedChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // FnCheckBoxHotKey
             // 
@@ -283,6 +284,7 @@
             this.FnCheckBoxHotKey.TabIndex = 10;
             this.FnCheckBoxHotKey.Text = "Fn";
             this.FnCheckBoxHotKey.UseVisualStyleBackColor = true;
+            this.FnCheckBoxHotKey.CheckedChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // keyComboBoxHotKey
             // 
@@ -292,18 +294,18 @@
             this.keyComboBoxHotKey.Name = "keyComboBoxHotKey";
             this.keyComboBoxHotKey.Size = new System.Drawing.Size(144, 24);
             this.keyComboBoxHotKey.TabIndex = 9;
-            this.keyComboBoxHotKey.SelectedIndexChanged += new System.EventHandler(this.keyComboBoxHotKey_SelectedIndexChanged);
-            this.keyComboBoxHotKey.TextChanged += new System.EventHandler(this.keyComboBoxHotKey_TextChanged);
+            this.keyComboBoxHotKey.TextChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // BlockKeyStrokeCheckBox
             // 
             this.BlockKeyStrokeCheckBox.AutoSize = true;
-            this.BlockKeyStrokeCheckBox.Location = new System.Drawing.Point(3, 206);
+            this.BlockKeyStrokeCheckBox.Location = new System.Drawing.Point(3, 176);
             this.BlockKeyStrokeCheckBox.Name = "BlockKeyStrokeCheckBox";
             this.BlockKeyStrokeCheckBox.Size = new System.Drawing.Size(203, 20);
             this.BlockKeyStrokeCheckBox.TabIndex = 12;
             this.BlockKeyStrokeCheckBox.Text = "Ignore in this process";
             this.BlockKeyStrokeCheckBox.UseVisualStyleBackColor = true;
+            this.BlockKeyStrokeCheckBox.CheckedChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // srcScript
             // 
@@ -317,21 +319,22 @@
             | Sgry.Azuki.DrawingOption.HighlightsMatchedBracket)));
             this.srcScript.FirstVisibleLine = 0;
             this.srcScript.Font = new System.Drawing.Font("MS UI Gothic", 9F);
-            fontInfo1.Name = "MS UI Gothic";
-            fontInfo1.Size = 9;
-            fontInfo1.Style = System.Drawing.FontStyle.Regular;
-            this.srcScript.FontInfo = fontInfo1;
+            fontInfo5.Name = "MS UI Gothic";
+            fontInfo5.Size = 9;
+            fontInfo5.Style = System.Drawing.FontStyle.Regular;
+            this.srcScript.FontInfo = fontInfo5;
             this.srcScript.ForeColor = System.Drawing.Color.Black;
-            this.srcScript.Location = new System.Drawing.Point(3, 232);
+            this.srcScript.Location = new System.Drawing.Point(3, 202);
             this.srcScript.Name = "srcScript";
             this.srcScript.Size = new System.Drawing.Size(457, 99);
             this.srcScript.TabIndex = 7;
             this.srcScript.ViewWidth = 4129;
+            this.srcScript.TextChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // splitter1
             // 
             this.splitter1.BackColor = System.Drawing.SystemColors.Control;
-            this.splitter1.Location = new System.Drawing.Point(3, 337);
+            this.splitter1.Location = new System.Drawing.Point(3, 307);
             this.splitter1.Name = "splitter1";
             this.splitter1.Size = new System.Drawing.Size(454, 5);
             this.splitter1.TabIndex = 8;
@@ -340,9 +343,9 @@
             // dstIconTitle
             // 
             this.dstIconTitle.ImageAlign = System.Drawing.ContentAlignment.TopLeft;
-            this.dstIconTitle.Location = new System.Drawing.Point(3, 345);
+            this.dstIconTitle.Location = new System.Drawing.Point(3, 315);
             this.dstIconTitle.Name = "dstIconTitle";
-            this.dstIconTitle.Size = new System.Drawing.Size(300, 64);
+            this.dstIconTitle.Size = new System.Drawing.Size(454, 64);
             this.dstIconTitle.TabIndex = 6;
             this.dstIconTitle.TextAlign = System.Drawing.ContentAlignment.BottomLeft;
             // 
@@ -358,24 +361,25 @@
             | Sgry.Azuki.DrawingOption.HighlightsMatchedBracket)));
             this.dstScript.FirstVisibleLine = 0;
             this.dstScript.Font = new System.Drawing.Font("MS UI Gothic", 9F);
-            fontInfo2.Name = "MS UI Gothic";
-            fontInfo2.Size = 9;
-            fontInfo2.Style = System.Drawing.FontStyle.Regular;
-            this.dstScript.FontInfo = fontInfo2;
+            fontInfo6.Name = "MS UI Gothic";
+            fontInfo6.Size = 9;
+            fontInfo6.Style = System.Drawing.FontStyle.Regular;
+            this.dstScript.FontInfo = fontInfo6;
             this.dstScript.ForeColor = System.Drawing.Color.Black;
-            this.dstScript.Location = new System.Drawing.Point(466, 3);
+            this.dstScript.Location = new System.Drawing.Point(3, 382);
             this.dstScript.Name = "dstScript";
             this.dstScript.Size = new System.Drawing.Size(457, 120);
             this.dstScript.TabIndex = 9;
             this.dstScript.ViewWidth = 4129;
+            this.dstScript.TextChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // applyActionHandlerButton
             // 
-            this.applyActionHandlerButton.Location = new System.Drawing.Point(391, 645);
+            this.applyActionHandlerButton.Location = new System.Drawing.Point(391, 526);
             this.applyActionHandlerButton.Name = "applyActionHandlerButton";
             this.applyActionHandlerButton.Size = new System.Drawing.Size(75, 23);
             this.applyActionHandlerButton.TabIndex = 15;
-            this.applyActionHandlerButton.Text = "Apply";
+            this.applyActionHandlerButton.Text = "Delete";
             this.applyActionHandlerButton.UseVisualStyleBackColor = true;
             this.applyActionHandlerButton.Click += new System.EventHandler(this.applyActionHandlerButton_Click);
             // 
@@ -439,14 +443,14 @@
             // startAllToolStripMenuItem
             // 
             this.startAllToolStripMenuItem.Name = "startAllToolStripMenuItem";
-            this.startAllToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.startAllToolStripMenuItem.Size = new System.Drawing.Size(122, 22);
             this.startAllToolStripMenuItem.Text = "Start All";
             this.startAllToolStripMenuItem.Click += new System.EventHandler(this.startAllToolStripMenuItem_Click);
             // 
             // stopAllToolStripMenuItem
             // 
             this.stopAllToolStripMenuItem.Name = "stopAllToolStripMenuItem";
-            this.stopAllToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.stopAllToolStripMenuItem.Size = new System.Drawing.Size(122, 22);
             this.stopAllToolStripMenuItem.Text = "Stop All";
             this.stopAllToolStripMenuItem.Click += new System.EventHandler(this.stopAllToolStripMenuItem_Click);
             // 
@@ -459,21 +463,11 @@
             // 
             this.openFileDialog1.FileName = "openFileDialog1";
             // 
-            // dstProcessComboBox
-            // 
-            this.dstProcessComboBox.FormattingEnabled = true;
-            this.dstProcessComboBox.Location = new System.Drawing.Point(3, 412);
-            this.dstProcessComboBox.Name = "dstProcessComboBox";
-            this.dstProcessComboBox.Size = new System.Drawing.Size(436, 24);
-            this.dstProcessComboBox.TabIndex = 16;
-            this.dstProcessComboBox.DropDown += new System.EventHandler(this.dstProcessComboBox_DropDown);
-            this.dstProcessComboBox.SelectedIndexChanged += new System.EventHandler(this.dstProcessComboBox_SelectedIndexChanged);
-            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1105, 704);
+            this.ClientSize = new System.Drawing.Size(1105, 589);
             this.Controls.Add(this.splitContainer1);
             this.Controls.Add(this.menuStrip1);
             this.Name = "Form1";
@@ -534,8 +528,7 @@
         private System.Windows.Forms.Button applyActionHandlerButton;
         private System.Windows.Forms.SaveFileDialog saveFileDialog1;
         private System.Windows.Forms.OpenFileDialog openFileDialog1;
-        private System.Windows.Forms.ComboBox srcProcessComboBox;
-        private System.Windows.Forms.ComboBox dstProcessComboBox;
+        private System.Windows.Forms.ComboBox processComboBox;
     }
 }
 

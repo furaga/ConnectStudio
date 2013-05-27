@@ -21,89 +21,172 @@ namespace ConnectStudio
 {
     public partial class Form1 : Form
     {
-        [DllImport("user32.dll", SetLastError = true)]
-        static extern IntPtr SetWindowsHookEx(WH hookType, MouseHookHandler hookDelegate, IntPtr module, uint threadId);
-        [DllImport("user32.dll", EntryPoint = "SetWindowsHookExA", CharSet = CharSet.Ansi)]
-        static extern IntPtr SetWindowsHookEx(WH idHook, KeyHookHandler lpfn, IntPtr module, uint dwThreadId);
-        [DllImport("user32.dll", SetLastError = true)]
-        static extern bool UnhookWindowsHookEx(IntPtr hook);
-        [DllImport("user32.dll")]
-        static extern int CallNextHookEx(IntPtr hook, int code, WM message, IntPtr state);
-        [DllImport("user32.dll", EntryPoint = "CallNextHookEx", CharSet = CharSet.Ansi)]
-        static extern int CallNextHookEx(int hook, int code, WM wParam, ref KBDLLHOOKSTRUCT lParam);
-        [DllImport("user32.dll")]
-        static extern bool SetForegroundWindow(IntPtr hWnd);
-        [DllImport("user32.dll")]
-        public static extern IntPtr GetForegroundWindow();
-        [DllImport("user32.dll")]
-        public static extern int GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId); public const uint MOD_ALT = 0x1;
-        // SHGetFileInfo関数
-        [DllImport("shell32.dll")]
-        private static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbSizeFileInfo, uint uFlags);
-
-        // SHGetFileInfo関数で使用する構造体
-        private struct SHFILEINFO
-        {
-            public IntPtr hIcon;
-            public IntPtr iIcon;
-            public uint dwAttributes;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
-            public string szDisplayName;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
-            public string szTypeName;
-        };
-
-        public enum WH
-        {
-            KEYBOARD_LL = 13,
-            MOUSE_LL = 14,
-        }
-        public enum WM
-        {
-            KEYDOWN = 0x0100,
-            KEYUP = 0x0101,
-            SYSKEYDOWN = 0x0104,
-            SYSKEYUP = 0x0105,
-            MOUSEMOVE = 0x0200,
-            LBUTTONDOWN = 0x0201,
-            LBUTTONUP = 0x0202,
-            LBUTTONDBLCLK = 0x0203,
-            RBUTTONDOWN = 0x0204,
-            RBUTTONUP = 0x0205,
-            RBUTTONDBLCLK = 0x0206,
-            MBUTTONDOWN = 0x0207,
-            MBUTTONUP = 0x0208,
-            MBUTTONDBLCLK = 0x0209,
-            MOUSEWHEEL = 0x020A,
-            XBUTTONDOWN = 0x020B,
-            XBUTTONUP = 0x020C,
-            XBUTTONDBLCLK = 0x020D,
-            MOUSEHWHEEL = 0x020E,
-        }
-        private struct KBDLLHOOKSTRUCT
-        {
-            public int vkCode;
-            int scanCode;
-            public int flags;
-            int time;
-            int dwExtraInfo;
-        }
-
-        // SHGetFileInfo関数で使用するフラグ
-        private const uint SHGFI_ICON = 0x100; // アイコン・リソースの取得
-        private const uint SHGFI_LARGEICON = 0x0; // 大きいアイコン
-        private const uint SHGFI_SMALLICON = 0x1; // 小さいアイコン
-
-        const uint MOD_CONTROL = 0x2;
-        const uint MOD_SHIFT = 0x4;
-        const uint MOD_WIN = 0x8;
-        const uint MOD_NOREPEAT = 0x4000; // Windows 7 以降
-        delegate int MouseHookHandler(int code, WM message, IntPtr state);
-        delegate int KeyHookHandler(int nCode, WM wParam, ref KBDLLHOOKSTRUCT lParam);
         IntPtr mouseHook;
         IntPtr keyHook;
         MouseHookHandler mouseHandler;
         KeyHookHandler keyHandler;
+        bool onCtrl = false;
+        bool onAlt = false;
+        bool onShift = false;
+        bool onFn = false;
+        bool onWin = false;
+
+
+        //----------------------------------------------------
+        // プロセスへの処理
+        //----------------------------------------------------
+
+        static Process GetActiveProcess()
+        {
+            int id;
+            IntPtr hWnd = GetForegroundWindow();
+            GetWindowThreadProcessId(hWnd, out id);
+            Process process = Process.GetProcessById(id);
+            return process;
+        }
+
+        void ActivateProcess(Process process)
+        {
+            try
+            {
+                SetForegroundWindow(process.MainWindowHandle);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+        }
+
+        // プロセスの種類がprocessNameなものの一覧
+        DataTable ProcessTable(string processName)
+        {
+            Process[] ps = Process.GetProcessesByName(processName);
+            DataTable table = new DataTable();
+            table.Columns.Add("NAME", typeof(string));
+            table.Columns.Add("ID", typeof(int));
+            DataRow row = table.NewRow();
+            row["NAME"] = "Any";
+            row["ID"] = -1; // ダミーのプロセス
+            table.Rows.Add(row);
+            foreach (Process p in ps.Where(p => !string.IsNullOrEmpty(p.MainWindowTitle)))
+            {
+                row = table.NewRow();
+                row["NAME"] = ProcessTitle(p);// p.MainWindowTitle + "(" + p.Id + ")";
+                row["ID"] = p.Id;
+                table.Rows.Add(row);
+            }
+            table.AcceptChanges();
+            return table;
+        }
+
+        //-------------------------------------------------------
+        // パソコンに入っているソフトウェアの一覧を取得
+        //-------------------------------------------------------
+
+        class tmpImageItem
+        {
+            public string Path;
+            public Icon appIcon;
+        }
+
+        // レジストリ内の "App Paths", "Application" キーから出奥
+        ImageList GetAppList()
+        {
+            var ls1 = GetAppListInAppPaths();
+            var ls2 = GetAppListInApplication();
+            ImageList ls = new ImageList();
+            ls.Images.Add("Any", new Bitmap("../../../../Resources/ANYIcon.png"));
+            foreach (var item in ls1.Concat(ls2).OrderBy(item => Path.GetFileName(item.Path)))
+            {
+                if (!ls.Images.ContainsKey(item.Path))
+                {
+                    ls.Images.Add(item.Path, item.appIcon);
+                }
+            }
+            return ls;
+        }
+
+        List<tmpImageItem> GetAppListInAppPaths()
+        {
+            var ls = new List<tmpImageItem>();
+            string rootPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths";
+            var rootRegKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(rootPath, false);
+            string[] keyNames = rootRegKey.GetSubKeyNames();
+            SHFILEINFO shinfo = new SHFILEINFO();
+            foreach (string keyName in keyNames)
+            {
+                var appRegKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(Path.Combine(rootPath, keyName));
+                if (appRegKey == null)
+                {
+                    continue;
+                }
+                try
+                {
+                    string appPath = appRegKey.GetValue("").ToString();
+                    IntPtr hSuccess = SHGetFileInfo(appPath, 0, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON);
+                    if (hSuccess != IntPtr.Zero)
+                    {
+                        Icon appIcon = Icon.FromHandle(shinfo.hIcon);
+                        ls.Add(new tmpImageItem()
+                        {
+                            Path = appPath,
+                            appIcon = appIcon
+                        });
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+            }
+            return ls;
+        }
+
+        List<tmpImageItem> GetAppListInApplication()
+        {
+            var ls = new List<tmpImageItem>();
+            string rootPath = @"Applications";
+            var rootRegKey = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey(rootPath, false);
+            string[] keyNames = rootRegKey.GetSubKeyNames();
+            SHFILEINFO shinfo = new SHFILEINFO();
+            foreach (string keyName in keyNames)
+            {
+                var appRegKey = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey(Path.Combine(rootPath, keyName, @"shell\open\command"));
+                if (appRegKey != null)
+                {
+                    try
+                    {
+                        string command = appRegKey.GetValue("").ToString();
+                        string appPath = command.Split('"')
+                            .Where(t => string.IsNullOrWhiteSpace(t) == false)
+                            .First();
+
+                        IntPtr hSuccess = SHGetFileInfo(appPath, 0, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON);
+                        if (hSuccess != IntPtr.Zero)
+                        {
+                            Icon appIcon = Icon.FromHandle(shinfo.hIcon);
+                            ls.Add(new tmpImageItem()
+                            {
+                                Path = appPath,
+                                appIcon = appIcon
+                            });
+                            Console.WriteLine("\nApp Path = " + appPath);
+                            Console.WriteLine(keyName);
+                            Console.WriteLine(Path.Combine(rootPath, keyName));
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                    }
+                }
+            }
+            return ls;
+        }
+
+        //-----------------------------------------------------
+        // フック開始/終了
+        //-----------------------------------------------------
 
         // キー入力とマウス入力をフック
         public void Hook()
@@ -125,48 +208,17 @@ namespace ConnectStudio
                 Console.WriteLine(new Win32Exception(errorCode));
             }
         }
+
+        // キー・マウス入力をアンフック
         public void Unhook()
         {
             UnhookWindowsHookEx(mouseHook);
             UnhookWindowsHookEx(keyHook);
         }
 
-        bool onCtrl = false;
-        bool onAlt = false;
-        bool onShift = false;
-        bool onFn = false;
-        bool onWin = false;
-
-        void printSystemKey()
-        {
-            Console.WriteLine("==================");
-            Console.WriteLine("ctrl: " + (onCtrl ? "pushing" : "releasing"));
-            Console.WriteLine("alt: " + (onAlt ? "pushing" : "releasing"));
-            Console.WriteLine("shift: " + (onShift ? "pushing" : "releasing"));
-            Console.WriteLine("fn: " + (onFn ? "pushing" : "releasing"));
-            Console.WriteLine("win: " + (onWin ? "pushing" : "releasing"));
-            Console.WriteLine("==================");
-        }
-
-        void UpdateSysKeyStates(WM wParam, ref KBDLLHOOKSTRUCT lParam)
-        {
-            switch (wParam)
-            {
-                case WM.KEYDOWN:
-                case WM.SYSKEYDOWN:
-                    if (lParam.vkCode == 160 || lParam.vkCode == 161) onShift = true;
-                    if (lParam.vkCode == 162 || lParam.vkCode == 163) onCtrl = true;
-                    if (lParam.vkCode == 164 || lParam.vkCode == 165) onAlt = true;
-                    break;
-                case WM.KEYUP:
-                case WM.SYSKEYUP:
-                    if (lParam.vkCode == 160 || lParam.vkCode == 161) onShift = false;
-                    if (lParam.vkCode == 162 || lParam.vkCode == 163) onCtrl = false;
-                    if (lParam.vkCode == 164 || lParam.vkCode == 165) onAlt = false;
-                    break;
-            }
-        }
-
+        //-----------------------------------------------------
+        // キーのフック処理
+        //-----------------------------------------------------
         int OnKeyLLHook(int code, WM wParam, ref KBDLLHOOKSTRUCT lParam)
         {
             UpdateSysKeyStates(wParam, ref lParam);
@@ -222,41 +274,29 @@ namespace ConnectStudio
             return CallNextHookEx(0, code, wParam, ref lParam);
         }
 
-        void ExecuteActionHandler(AppEdge appEdge)
+        void UpdateSysKeyStates(WM wParam, ref KBDLLHOOKSTRUCT lParam)
         {
-            try
+            switch (wParam)
             {
-                Stopwatch sw = Stopwatch.StartNew();
-                ScriptEngine engine = new ScriptEngine();
-                Session session = engine.CreateSession();
-
-                session.AddReference("System");
-                session.AddReference("System.Drawing");
-                session.AddReference("System.Windows.Forms");
-                session.Execute("using System;");
-                session.Execute("using System.Collections.Generic;");
-                session.Execute("using System.Windows.Forms;");
-                Console.WriteLine("Init: " + sw.Elapsed.TotalSeconds + " s");
-                sw.Restart();
-
-                session.Execute(appEdge.ActionHandler.srcScript);
-                Console.WriteLine("Execute Src: " + sw.Elapsed.TotalSeconds + " s");
-                sw.Restart();
-
-                ActivateProcess(appEdge.Dst.Process);
-                Console.WriteLine("Activate Dst: " + sw.Elapsed.TotalSeconds + " s");
-                sw.Restart();
-
-                session.Execute(appEdge.ActionHandler.dstScript);
-                Console.WriteLine("Execute Dst: " + sw.Elapsed.TotalSeconds + " s");
-                sw.Restart();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
+                case WM.KEYDOWN:
+                case WM.SYSKEYDOWN:
+                    if (lParam.vkCode == 160 || lParam.vkCode == 161) onShift = true;
+                    if (lParam.vkCode == 162 || lParam.vkCode == 163) onCtrl = true;
+                    if (lParam.vkCode == 164 || lParam.vkCode == 165) onAlt = true;
+                    break;
+                case WM.KEYUP:
+                case WM.SYSKEYUP:
+                    if (lParam.vkCode == 160 || lParam.vkCode == 161) onShift = false;
+                    if (lParam.vkCode == 162 || lParam.vkCode == 163) onCtrl = false;
+                    if (lParam.vkCode == 164 || lParam.vkCode == 165) onAlt = false;
+                    break;
             }
         }
-
+        
+        //-----------------------------------------------------
+        // マウスのフック処理
+        //-----------------------------------------------------
+        
         int OnMouseLLHook(int code, WM message, IntPtr state)
         {
             try
@@ -299,22 +339,38 @@ namespace ConnectStudio
             }
         }
 
-        static Process GetActiveProcess()
-        {
-            // アクティブなウィンドウハンドルの取得
-            IntPtr hWnd = GetForegroundWindow();
-            int id;
-            // ウィンドウハンドルからプロセスIDを取得
-            GetWindowThreadProcessId(hWnd, out id);
-            Process process = Process.GetProcessById(id);
-            return process;
-        }
-        // 指定したファイル名のプロセスをアクティブにする
-        void ActivateProcess(Process process)
+        //------------------------------------------------
+        // スクリプトの実行
+        //------------------------------------------------
+
+        void ExecuteActionHandler(AppEdge appEdge)
         {
             try
             {
-                SetForegroundWindow(process.MainWindowHandle);
+                Stopwatch sw = Stopwatch.StartNew();
+                ScriptEngine engine = new ScriptEngine();
+                Session session = engine.CreateSession();
+
+                session.AddReference("System");
+                session.AddReference("System.Drawing");
+                session.AddReference("System.Windows.Forms");
+                session.Execute("using System;");
+                session.Execute("using System.Collections.Generic;");
+                session.Execute("using System.Windows.Forms;");
+                Console.WriteLine("Init: " + sw.Elapsed.TotalSeconds + " s");
+                sw.Restart();
+
+                session.Execute(appEdge.ActionHandler.srcScript);
+                Console.WriteLine("Execute Src: " + sw.Elapsed.TotalSeconds + " s");
+                sw.Restart();
+
+                ActivateProcess(appEdge.Dst.Process);
+                Console.WriteLine("Activate Dst: " + sw.Elapsed.TotalSeconds + " s");
+                sw.Restart();
+
+                session.Execute(appEdge.ActionHandler.dstScript);
+                Console.WriteLine("Execute Dst: " + sw.Elapsed.TotalSeconds + " s");
+                sw.Restart();
             }
             catch (Exception e)
             {
@@ -322,111 +378,9 @@ namespace ConnectStudio
             }
         }
 
-        // アプリケーションのパス名とアイコンが入ったListViewItemのリスト
-
-        class tmpImageItem
-        {
-            public string Path;
-            public Icon appIcon;
-        }
-
-        ImageList GetAppList()
-        {
-            var ls1 = GetAppListInAppPaths();
-            var ls2 = GetAppListInApplication();
-            ImageList ls = new ImageList();
-            ls.Images.Add("Any", new Bitmap("../../../../Resources/ANYIcon.png"));
-            foreach (var item in ls1.Concat(ls2).OrderBy(item => Path.GetFileName(item.Path)))
-            {
-                if (!ls.Images.ContainsKey(item.Path))
-                {
-                    ls.Images.Add(item.Path, item.appIcon);
-                }
-            }
-            return ls;
-        }
-
-        List<tmpImageItem> GetAppListInAppPaths()
-        {
-            var ls = new List<tmpImageItem>();
-            string rootPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths";
-            var rootRegKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(rootPath, false);
-            string[] keyNames = rootRegKey.GetSubKeyNames();
-            SHFILEINFO shinfo = new SHFILEINFO();
-            foreach (string keyName in keyNames)
-            {
-                //Console.WriteLine(keyName);
-                //Console.WriteLine(Path.Combine(rootPath, keyName));
-                var appRegKey = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(Path.Combine(rootPath, keyName));
-                if (appRegKey != null)
-                {
-                    try
-                    {
-                        string appPath = appRegKey.GetValue("").ToString();
-                        //                       Console.WriteLine(appPath);
-                        IntPtr hSuccess = SHGetFileInfo(appPath, 0, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON);
-                        if (hSuccess != IntPtr.Zero)
-                        {
-                            Icon appIcon = Icon.FromHandle(shinfo.hIcon);
-                            ls.Add(new tmpImageItem()
-                                {
-                                    Path = appPath,
-                                    appIcon = appIcon
-                                });
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e);
-                    }
-                }
-            }
-            return ls;
-        }
-
-
-        List<tmpImageItem> GetAppListInApplication()
-        {
-            var ls = new List<tmpImageItem>();
-            string rootPath = @"Applications";
-            var rootRegKey = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey(rootPath, false);
-            string[] keyNames = rootRegKey.GetSubKeyNames();
-            SHFILEINFO shinfo = new SHFILEINFO();
-            foreach (string keyName in keyNames)
-            {
-                var appRegKey = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey(Path.Combine(rootPath, keyName, @"shell\open\command"));
-                if (appRegKey != null)
-                {
-                    try
-                    {
-                        string command = appRegKey.GetValue("").ToString();
-                        string appPath = command.Split('"')
-                            .Where(t => string.IsNullOrWhiteSpace(t) == false)
-                            .First();
-
-                        IntPtr hSuccess = SHGetFileInfo(appPath, 0, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON);
-                        if (hSuccess != IntPtr.Zero)
-                        {
-                            Icon appIcon = Icon.FromHandle(shinfo.hIcon);
-                            ls.Add(new tmpImageItem()
-                            {
-                                Path = appPath,
-                                appIcon = appIcon
-                            });
-                            Console.WriteLine("\nApp Path = " + appPath);
-                            Console.WriteLine(keyName);
-                            Console.WriteLine(Path.Combine(rootPath, keyName));
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(e);
-                    }
-                }
-            }
-            return ls;
-        }
-
+        //----------------------------------------------------------
+        // アプリケーション間の連携を表すグラフ構造
+        //----------------------------------------------------------
 
         public class AppGraph
         {
@@ -457,8 +411,7 @@ namespace ConnectStudio
             }
         }
 
-        public enum TriggerType { ContextMenu, HotKey }
-
+        // スクリプト実行のためのハンドラ情報
         public class ActionHandler
         {
             public TriggerType TriggerType { get; set; }
@@ -494,13 +447,69 @@ namespace ConnectStudio
             }
         }
 
+        // AppEdgeの内容をGUIに表示
+
+        void ClearEdgeDetail(AppEdge edge)
+        {
+            allowEditEdgeDetail = false;
+
+            editingEdge = null;
+
+            srcIconTitle.Image = null;
+            srcIconTitle.Text = "";
+            radioContextMenu.Checked = true;
+            textBoxContextMenu.Text = "";
+            radioHotKey.Checked = false;
+            CtrlCheckBoxHotKey.Checked = false;
+            AltCheckBoxHotKey.Checked = false; 
+            WinCheckBoxHotKey.Checked = false; 
+            ShiftCheckBoxHotKey.Checked = false; 
+            FnCheckBoxHotKey.Checked = false; 
+            keyComboBoxHotKey.Text = "";
+            BlockKeyStrokeCheckBox.Checked = false;
+            srcScript.Text = "";
+
+            dstIconTitle.Image = null;
+            dstIconTitle.Text = "";
+            dstScript.Text = "";
+
+            allowEditEdgeDetail = true;
+        }
+
+        string ProcessTitle(Process p)
+        {
+            try
+            {
+                if (p != null)
+                {
+                    if (string.IsNullOrEmpty(p.MainWindowTitle))
+                    {
+                        return "";
+                    }
+                    else
+                    {
+                        return p.MainWindowTitle;
+                    }
+                }
+            }
+            catch (Exception ee)
+            {
+                return "Any";
+                //                Console.WriteLine(ee);
+            }
+            return "";
+        }
+        
         void ShowEdgeDetail(AppEdge edge)
         {
+            if (edge == null) return;
+
+            allowEditEdgeDetail = false;
+
             editingEdge = edge;
 
             srcIconTitle.Image = edge.Src.Icon;
-            srcIconTitle.Text = edge.Src.Text;
-            srcProcessComboBox_DropDown(null, null);
+            srcIconTitle.Text = edge.Src.Text + ": " + ProcessTitle(edge.Src.Process);
             radioContextMenu.Checked = edge.ActionHandler.TriggerType == TriggerType.ContextMenu;
             textBoxContextMenu.Text = edge.ActionHandler.ContextMenuText;
             radioHotKey.Checked = edge.ActionHandler.TriggerType == TriggerType.HotKey;
@@ -512,31 +521,12 @@ namespace ConnectStudio
             keyComboBoxHotKey.Text = edge.ActionHandler.Key;
             BlockKeyStrokeCheckBox.Checked = edge.ActionHandler.BlockKeyStroke;
             srcScript.Text = edge.ActionHandler.srcScript;
-            dstIconTitle.Image = edge.Dst.Icon;
-            dstIconTitle.Text = edge.Dst.Text;
-            dstProcessComboBox_DropDown(null, null);
-            dstScript.Text = edge.ActionHandler.dstScript;
-        }
 
-        DataTable ProcessTable(string processName)
-        {
-            Process[] ps = Process.GetProcessesByName(processName);
-            DataTable table = new DataTable();
-            table.Columns.Add("NAME", typeof(string));
-            table.Columns.Add("ID", typeof(int));
-            DataRow row = table.NewRow();
-            row["NAME"] = "Any";
-            row["ID"] = -1; // ダミーのプロセス
-            table.Rows.Add(row);
-            foreach (Process p in ps.Where(p => !string.IsNullOrEmpty(p.MainWindowTitle)))
-            {
-                row = table.NewRow();
-                row["NAME"] = p.MainWindowTitle + "(" + p.Id + ")";
-                row["ID"] = p.Id;
-                table.Rows.Add(row);
-            }
-            table.AcceptChanges();
-            return table;
+            dstIconTitle.Image = edge.Dst.Icon;
+            dstIconTitle.Text = edge.Dst.Text + ": " + ProcessTitle(edge.Dst.Process);;
+            dstScript.Text = edge.ActionHandler.dstScript;
+
+            allowEditEdgeDetail = true;
         }
     }
 }
