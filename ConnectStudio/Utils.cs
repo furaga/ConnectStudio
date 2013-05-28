@@ -16,6 +16,8 @@ using Roslyn.Compilers.Common;
 using Roslyn.Compilers.CSharp;
 using Roslyn.Scripting;
 using Roslyn.Scripting.CSharp;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace ConnectStudio
 {
@@ -71,7 +73,7 @@ namespace ConnectStudio
             foreach (Process p in ps.Where(p => !string.IsNullOrEmpty(p.MainWindowTitle)))
             {
                 row = table.NewRow();
-                row["NAME"] = ProcessTitle(p);// p.MainWindowTitle + "(" + p.Id + ")";
+                row["NAME"] = p.MainWindowTitle;// p.MainWindowTitle + "(" + p.Id + ")";
                 row["ID"] = p.Id;
                 table.Rows.Add(row);
             }
@@ -90,20 +92,11 @@ namespace ConnectStudio
         }
 
         // レジストリ内の "App Paths", "Application" キーから出奥
-        ImageList GetAppList()
+        IEnumerable<tmpImageItem> GetAppList()
         {
             var ls1 = GetAppListInAppPaths();
             var ls2 = GetAppListInApplication();
-            ImageList ls = new ImageList();
-            ls.Images.Add("Any", new Bitmap("../../../../Resources/ANYIcon.png"));
-            foreach (var item in ls1.Concat(ls2).OrderBy(item => Path.GetFileName(item.Path)))
-            {
-                if (!ls.Images.ContainsKey(item.Path))
-                {
-                    ls.Images.Add(item.Path, item.appIcon);
-                }
-            }
-            return ls;
+            return ls1.Concat(ls2);
         }
 
         List<tmpImageItem> GetAppListInAppPaths()
@@ -231,17 +224,7 @@ namespace ConnectStudio
                     for (int i = 0; i < appGraph.edges.Count; i++)
                     {
                         AppEdge appEdge = appGraph.edges[i];
-                        // プロセスが動いてなければ
-                        if (appEdge.Src.Process == null || appEdge.Dst.Process == null)
-                        {
-                            continue;
-                        }
-                        if (appEdge.ActionHandler.TriggerType != TriggerType.HotKey)
-                        {
-                            continue;
-                        }
-                        Process activeProcess = GetActiveProcess();
-                        if (appEdge.Src.Path != "Any" && activeProcess.Id != appEdge.Src.Process.Id)
+                        if (!IsValidEdge(appEdge, TriggerType.HotKey))
                         {
                             continue;
                         }
@@ -257,14 +240,21 @@ namespace ConnectStudio
                                 //                              (!appEdge.ActionHandler.Fn || (lParam.vkCode & MOD_WIN) != 0) && 
                                     ((lParam.vkCode & (uint)keyCode) == (uint)keyCode))
                             {
-                                ExecuteActionHandler(appEdge);
-                                if (appEdge.ActionHandler.BlockKeyStroke)
+                                try
                                 {
-                                    return 1;
+                                    ExecuteActionHandler(appEdge);
+                                    if (appEdge.ActionHandler.BlockKeyStroke)
+                                    {
+                                        return 1;
+                                    }
+                                    else
+                                    {
+                                        return CallNextHookEx(0, code, wParam, ref lParam);
+                                    }
                                 }
-                                else
+                                catch (Exception e)
                                 {
-                                    return CallNextHookEx(0, code, wParam, ref lParam);
+                                    Console.WriteLine(e);
                                 }
                             }
                         }
@@ -296,7 +286,41 @@ namespace ConnectStudio
         //-----------------------------------------------------
         // マウスのフック処理
         //-----------------------------------------------------
-        
+
+        bool IsValidEdge(AppEdge appEdge, TriggerType triggerType)
+        {
+            if (appEdge.Src.Process == null || appEdge.Dst.Process == null)
+            {
+                return false;
+            }
+            if (appEdge.ActionHandler.TriggerType != triggerType)
+            {
+                return false;
+            }
+            Process activeProcess = GetActiveProcess();
+            if (appEdge.Src.Path != "Any")
+            {
+                // 
+                if (appEdge.Src.Any)
+                {
+                    // ソフトの種類のみ見る
+                    if (activeProcess.ProcessName != appEdge.Src.ProcessName)
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    // プロセスIDまで見る
+                    if (activeProcess.Id != appEdge.Src.Process.Id)
+                    {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
         int OnMouseLLHook(int code, WM message, IntPtr state)
         {
             try
@@ -306,6 +330,7 @@ namespace ConnectStudio
                     var clientPos = virtualContextMenu.PointToClient(Cursor.Position);
                     if (virtualContextMenu.Visible && virtualContextMenu.ClientRectangle.Contains(clientPos) == false)
                     {
+                        virtualContextMenu.Hide();
                     }
                 }
                 if (message == WM.RBUTTONUP)
@@ -313,20 +338,26 @@ namespace ConnectStudio
                     // コンテキストメニューを表示
                     virtualContextMenu.Items.Clear();
 
-                    //
-
                     for (int i = 0; i < appGraph.edges.Count; i++)
                     {
-
+                        AppEdge appEdge = appGraph.edges[i];
+                        if (!IsValidEdge(appEdge, TriggerType.ContextMenu))
+                        {
+                            continue;
+                        }
+                        var item = new ToolStripMenuItem(appEdge.ActionHandler.ContextMenuText);
+                        item.Click += (s, ee) => ExecuteActionHandler(appEdge);
+                        item.Invalidate();
+                        virtualContextMenu.Items.Add(item);
                     }
-
-
-
-
 
                     if (virtualContextMenu.Items.Count >= 1)
                     {
-                        virtualContextMenu.Hide();
+                        ToolStripMenuItem[] itemList = new ToolStripMenuItem[virtualContextMenu.Items.Count];
+                        for (int j = 0; j < virtualContextMenu.Items.Count; j++)
+                        {
+                            itemList[j] = virtualContextMenu.Items[j] as ToolStripMenuItem;
+                        }
                         virtualContextMenu.Show(new Point(Cursor.Position.X, Cursor.Position.Y - 22 * virtualContextMenu.Items.Count));
                     }
                 }
@@ -347,30 +378,10 @@ namespace ConnectStudio
         {
             try
             {
-                Stopwatch sw = Stopwatch.StartNew();
                 ScriptEngine engine = new ScriptEngine();
                 Session session = engine.CreateSession();
-
-                session.AddReference("System");
-                session.AddReference("System.Drawing");
-                session.AddReference("System.Windows.Forms");
-                session.Execute("using System;");
-                session.Execute("using System.Collections.Generic;");
-                session.Execute("using System.Windows.Forms;");
-                Console.WriteLine("Init: " + sw.Elapsed.TotalSeconds + " s");
-                sw.Restart();
-
-                session.Execute(appEdge.ActionHandler.srcScript);
-                Console.WriteLine("Execute Src: " + sw.Elapsed.TotalSeconds + " s");
-                sw.Restart();
-
-                ActivateProcess(appEdge.Dst.Process);
-                Console.WriteLine("Activate Dst: " + sw.Elapsed.TotalSeconds + " s");
-                sw.Restart();
-
-                session.Execute(appEdge.ActionHandler.dstScript);
-                Console.WriteLine("Execute Dst: " + sw.Elapsed.TotalSeconds + " s");
-                sw.Restart();
+                ExecuteBeforeTransition(session, appEdge);
+                ExecuteAfterTransition(session, appEdge);
             }
             catch (Exception e)
             {
@@ -378,33 +389,80 @@ namespace ConnectStudio
             }
         }
 
+        void ExecuteBeforeTransition(Session session, AppEdge appEdge)
+        {
+            session.AddReference("System");
+            session.AddReference("System.Drawing");
+            session.AddReference("System.Windows.Forms");
+            session.Execute("using System;");
+            session.Execute("using System.Drawing;");
+            session.Execute("using System.Collections.Generic;");
+            session.Execute("using System.Windows.Forms;");
+            session.Execute(appEdge.ActionHandler.srcScript);
+        }
+
+        void ExecuteAfterTransition(Session session, AppEdge appEdge)
+        {
+            Process targetProcess = null;
+
+            if (appEdge.Dst.Any)
+            {
+                Process[] ps = Process.GetProcessesByName(appEdge.Dst.ProcessName).Where(p => !string.IsNullOrWhiteSpace(p.MainWindowTitle)).ToArray();
+                if (ps.Length >= 1)
+                {
+                    targetProcess = ps.First();
+                }
+            }
+            else
+            {
+                targetProcess = appEdge.Dst.Process;
+            }
+
+            if (targetProcess != null)
+            {
+                ActivateProcess(targetProcess);
+            }
+
+            if (appEdge.Dst.Path == "Any" || targetProcess != null)
+            {
+                session.Execute(appEdge.ActionHandler.dstScript);
+            }
+        }
+            
+
         //----------------------------------------------------------
         // アプリケーション間の連携を表すグラフ構造
         //----------------------------------------------------------
-
+        [Serializable()]
         public class AppGraph
         {
             public List<AppNode> nodes = new List<AppNode>();
             public List<AppEdge> edges = new List<AppEdge>();
         }
-
+        [Serializable()]
         public class AppNode
         {
-            public string Text { get; set; }
-            public string Path { get; set; }
-            [System.Xml.Serialization.XmlIgnoreAttribute]
-            public Image Icon { get; set; }
-            public Point Position { get; set; }
-            [System.Xml.Serialization.XmlIgnoreAttribute]
-            public Process Process { get; set; }
+            public string ProcessName;
+            public string Path;
+            [NonSerialized()]
+            public Image Icon;
+            public Point Position;
+            [NonSerialized()]
+            public Process Process;
+            public bool Any;
+            public AppNode()
+            {
+                Any = true;
+                Process = new Process();
+            }
         }
-
+        [Serializable()]
         public class AppEdge
         {
-            public string Text { get; set; }
-            public AppNode Src { get; set; }
-            public AppNode Dst { get; set; }
-            public ActionHandler ActionHandler { get; set; }
+            public string Text;
+            public AppNode Src;
+            public AppNode Dst;
+            public ActionHandler ActionHandler;
             public AppEdge()
             {
                 ActionHandler = new ActionHandler();
@@ -412,23 +470,28 @@ namespace ConnectStudio
         }
 
         // スクリプト実行のためのハンドラ情報
+        [Serializable()]
         public class ActionHandler
         {
-            public TriggerType TriggerType { get; set; }
-            public string ContextMenuText { get; set; }
-            public bool Ctrl { get; set; }
-            public bool Alt { get; set; }
-            public bool Win { get; set; }
-            public bool Shift { get; set; }
-            public bool Fn { get; set; }
-            public string Key { get; set; }
-            public bool BlockKeyStroke { get; set; }
-            public string srcScript { get; set; }
-            public string dstScript { get; set; }
+            public TriggerType TriggerType;
+            public string ContextMenuText;
+            public bool Ctrl;
+            public bool Alt;
+            public bool Win;
+            public bool Shift;
+            public bool Fn;
+            public string Key;
+            public bool BlockKeyStroke;
+            public string srcScript;
+            public string dstScript;
 
             public ActionHandler()
             {
                 TriggerType = TriggerType.HotKey;
+                ContextMenuText = "";
+                Key = "";
+                srcScript = "";
+                dstScript = "";
             }
 
             public ActionHandler(Form1 mainForm)
@@ -449,8 +512,10 @@ namespace ConnectStudio
 
         // AppEdgeの内容をGUIに表示
 
-        void ClearEdgeDetail(AppEdge edge)
+        void ClearEdgeDetail()
         {
+            flowLayoutPanel1.Hide();
+
             allowEditEdgeDetail = false;
 
             editingEdge = null;
@@ -476,32 +541,27 @@ namespace ConnectStudio
             allowEditEdgeDetail = true;
         }
 
-        string ProcessTitle(Process p)
+        string NodeTitle(AppNode appNode)
         {
             try
             {
-                if (p != null)
+                if (appNode.Any)
                 {
-                    if (string.IsNullOrEmpty(p.MainWindowTitle))
-                    {
-                        return "";
-                    }
-                    else
-                    {
-                        return p.MainWindowTitle;
-                    }
+                    return "Any";
                 }
+                Process p = appNode.Process;
+                return p.MainWindowTitle;
             }
             catch (Exception ee)
             {
-                return "Any";
-                //                Console.WriteLine(ee);
+                Console.WriteLine(ee);
             }
             return "";
         }
         
         void ShowEdgeDetail(AppEdge edge)
         {
+            flowLayoutPanel1.Show();
             if (edge == null) return;
 
             allowEditEdgeDetail = false;
@@ -509,7 +569,7 @@ namespace ConnectStudio
             editingEdge = edge;
 
             srcIconTitle.Image = edge.Src.Icon;
-            srcIconTitle.Text = edge.Src.Text + ": " + ProcessTitle(edge.Src.Process);
+            srcIconTitle.Text = edge.Src.ProcessName + ": " + NodeTitle(edge.Src);
             radioContextMenu.Checked = edge.ActionHandler.TriggerType == TriggerType.ContextMenu;
             textBoxContextMenu.Text = edge.ActionHandler.ContextMenuText;
             radioHotKey.Checked = edge.ActionHandler.TriggerType == TriggerType.HotKey;
@@ -523,7 +583,7 @@ namespace ConnectStudio
             srcScript.Text = edge.ActionHandler.srcScript;
 
             dstIconTitle.Image = edge.Dst.Icon;
-            dstIconTitle.Text = edge.Dst.Text + ": " + ProcessTitle(edge.Dst.Process);;
+            dstIconTitle.Text = edge.Dst.ProcessName + ": " + NodeTitle(edge.Dst);;
             dstScript.Text = edge.ActionHandler.dstScript;
 
             allowEditEdgeDetail = true;

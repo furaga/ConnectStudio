@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -8,17 +9,74 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Diagnostics;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
+using System.Runtime.InteropServices;
+using System.Management;
 
 namespace ConnectStudio
 {
     public partial class Form1 : Form
     {
+        IEnumerable<tmpImageItem> appListFromReg;
+
         public Form1()
         {
             InitializeComponent();
+            ClearEdgeDetail();
             processComboBox.Visible = false;
             canvas.AllowDrop = true;
-            appListView.LargeImageList = GetAppList();
+            keyComboBoxHotKey.Items.AddRange(Enum.GetNames(typeof(Keys)).OrderBy(s => s).ToArray());
+
+            appListFromReg = GetAppList();
+            UpdateAppListView();
+        }
+        ManagementObjectCollection moc;
+
+        void UpdateAppListView()
+        {
+            ImageList ls = new ImageList();
+
+            string query = "SELECT ExecutablePath FROM Win32_Process";
+            ManagementObjectSearcher searcher = new ManagementObjectSearcher(query);
+            moc = searcher.Get();
+
+            var ps = Process.GetProcesses()
+                .Where(p => string.IsNullOrWhiteSpace(p.MainWindowTitle) == false)
+                .GroupBy(p => p.ProcessName)
+                .Select(g => g.First())
+                .Select(p =>
+                    {
+                        SHFILEINFO shinfo = new SHFILEINFO();
+                        string appPath = ProcessExecutablePath(p);
+                        IntPtr hSuccess = SHGetFileInfo(appPath, 0, ref shinfo, (uint)Marshal.SizeOf(shinfo), SHGFI_ICON | SHGFI_LARGEICON);
+                        if (hSuccess != IntPtr.Zero)
+                        {
+                            Icon appIcon = Icon.FromHandle(shinfo.hIcon);
+                            return new tmpImageItem()
+                            {
+                                Path = appPath,
+                                appIcon = appIcon
+                            };
+                        }
+                        return null;
+                    })
+                .Where(item => item != null).ToArray();
+
+            ls.Images.Add("Any", new Bitmap("../../../Resources/ANYIcon.png"));
+            foreach (var item in ps)
+            {
+                ls.Images.Add(item.Path, item.appIcon);
+            }
+            foreach (var item in appListFromReg.OrderBy(item => Path.GetFileName(item.Path)))
+            {
+                if (!ls.Images.ContainsKey(item.Path))
+                {
+                    ls.Images.Add(item.Path, item.appIcon);
+                }
+            }
+
+            appListView.LargeImageList = ls;
             appListView.LargeImageList.ImageSize = new Size(32, 32);
             for (int i = 0; i < appListView.LargeImageList.Images.Count; i++)
             {
@@ -28,8 +86,39 @@ namespace ConnectStudio
                     ImageIndex = i
                 });
             }
-            keyComboBoxHotKey.Items.AddRange(Enum.GetNames(typeof(Keys)).OrderBy(s => s).ToArray());
         }
+
+        string ProcessExecutablePath(Process process)
+        {
+            try
+            {
+                return process.MainModule.FileName;
+            }
+            catch
+            {
+                try
+                {
+                    if (moc != null)
+                    {
+                        foreach (ManagementObject item in moc)
+                        {
+                            object path = item["ExecutablePath"];
+                            if (path != null)
+                            {
+                                return path.ToString();
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    Console.WriteLine("Error: ProcessExecutablePath()");
+                }
+            }
+
+            return "";
+        }
+
 
         protected override void OnClosing(CancelEventArgs e)
         {
@@ -46,25 +135,29 @@ namespace ConnectStudio
         {
             try
             {
-                //保存元のファイル名
-                openFileDialog1.AddExtension = true;
-                openFileDialog1.DefaultExt = "*.config;*.config";
-                openFileDialog1.RestoreDirectory = true;
+                openFileDialog.Filter = "ConnectStudioスクリプト(*.con)|*.con|すべてのファイル(*.*)|*.*";
+                openFileDialog.RestoreDirectory = true;
 
-                if (openFileDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                if (openFileDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                 {
-                    System.Xml.Serialization.XmlSerializer serializer = new System.Xml.Serialization.XmlSerializer(typeof(AppGraph));
-                    System.IO.FileStream fs = new System.IO.FileStream(openFileDialog1.FileName, System.IO.FileMode.Open);
-                    appGraph = (AppGraph)serializer.Deserialize(fs);
+                    FileStream fs = new FileStream(openFileDialog.FileName, FileMode.Open, FileAccess.Read);
+                    BinaryFormatter f = new BinaryFormatter();
+                    //読み込んで逆シリアル化する
+                    appGraph = f.Deserialize(fs) as AppGraph;
                     fs.Close();
 
-                    // アイコン取得
+                    Debug.Assert(appGraph.edges[0].Src == appGraph.nodes[0] || appGraph.edges[0].Dst == appGraph.nodes[0]);
+
                     foreach (var node in appGraph.nodes)
                     {
+                        // アイコン取得
                         if (appListView.LargeImageList.Images.ContainsKey(node.Path))
                         {
                             node.Icon = appListView.LargeImageList.Images[appListView.LargeImageList.Images.IndexOfKey(node.Path)];
                         }
+                        // プロセス情報はデフォルトに設定しなおす
+                        node.Any = true;
+                        node.Process = new Process();
                     }
                     canvas.Invalidate();
                 }
@@ -79,17 +172,14 @@ namespace ConnectStudio
         {
             try
             {
-                saveFileDialog1.AddExtension = true;
-                saveFileDialog1.DefaultExt = "*.config;*.config";
-                saveFileDialog1.RestoreDirectory = true;
-
-                if (saveFileDialog1.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                saveFileDialog.Filter = "ConnectStudioスクリプト(*.con)|*.con|すべてのファイル(*.*)|*.*";
+                saveFileDialog.RestoreDirectory = true;
+                if (saveFileDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                 {
-                    System.Xml.Serialization.XmlSerializer serializer = new System.Xml.Serialization.XmlSerializer(typeof(AppGraph));
-                    using (System.IO.FileStream fs = new System.IO.FileStream(saveFileDialog1.FileName, System.IO.FileMode.Create))
-                    {
-                        serializer.Serialize(fs, appGraph);
-                    }
+                    FileStream fs = new FileStream(saveFileDialog.FileName, FileMode.Create, FileAccess.Write);
+                    BinaryFormatter bf = new BinaryFormatter();
+                    bf.Serialize(fs, appGraph);
+                    fs.Close();                    
                 }
             }
             catch (Exception ee)
@@ -143,7 +233,7 @@ namespace ConnectStudio
                     {
                         if (node.Process != null)
                         {
-                            string text = ProcessTitle(node.Process);
+                            string text = NodeTitle(node);
                             if (text.Length >= AppNodeTitleCharLimit)
                             {
                                 text = text.Remove(AppNodeTitleCharLimit - 4) + "...";
@@ -184,12 +274,20 @@ namespace ConnectStudio
                         g.DrawArc(edgePen, new Rectangle(p1.X, p1.Y - 64, 64, 64), 90, -270);
                     }
                     // TODO
-                    string text = edge.ActionHandler.Ctrl ? "Ctrl + " : "";
-                    text += edge.ActionHandler.Win ? "Ctrl + " : "";
-                    text += edge.ActionHandler.Fn ? "Fn + " : "";
-                    text += edge.ActionHandler.Shift ? "Sfhift + " : "";
-                    text += edge.ActionHandler.Alt ? "Alt + " : "";
-                    text += edge.ActionHandler.Key;
+                    string text = "";
+                    if (edge.ActionHandler.TriggerType == TriggerType.ContextMenu)
+                    {
+                        text = "\"" + edge.ActionHandler.ContextMenuText + "\"";
+                    }
+                    else
+                    {
+                        text += edge.ActionHandler.Ctrl ? "Ctrl + " : "";
+                        text += edge.ActionHandler.Win ? "Ctrl + " : "";
+                        text += edge.ActionHandler.Fn ? "Fn + " : "";
+                        text += edge.ActionHandler.Shift ? "Sfhift + " : "";
+                        text += edge.ActionHandler.Alt ? "Alt + " : "";
+                        text += edge.ActionHandler.Key;
+                    }
                     g.DrawString(text, fnt, Brushes.Black, new PointF((p1.X + p4.X) / 2, (p1.Y + p4.Y) / 2));
                 }
             }
@@ -213,7 +311,7 @@ namespace ConnectStudio
         private void canvas_MouseMove(object sender, MouseEventArgs e)
         {
             if (appendingNode != null)
-          {
+            {
                 appendingNode.Position = e.Location;
                 canvas.Invalidate();
             }
@@ -232,6 +330,10 @@ namespace ConnectStudio
 
         private void canvas_MouseClick(object sender, MouseEventArgs e)
         {
+            // コンボボックスを隠す
+            editingNode = null;
+            processComboBox.Hide();
+
             // 1クリック1アクション
             if (appendingNode != null)
             {
@@ -255,7 +357,16 @@ namespace ConnectStudio
  
         private void canvas_MouseDoubleClick(object sender, MouseEventArgs e)
         {
-            processComboBox.Hide();
+            // 追加中の枝は削除
+            appendingEdge = null;
+            canvas.Invalidate();
+
+            // ノードとの当たり判定
+            if (canvas_checkNodes(sender, e))
+            {
+                return;
+            }
+
             // 枝の起点を決める
             if (appendingEdge == null && e.Button == System.Windows.Forms.MouseButtons.Left)
             {
@@ -269,19 +380,11 @@ namespace ConnectStudio
         private void canvas_MouseLeftClick(object sender, MouseEventArgs e)
         {
             // 枝の終点を決める
-            if (appendingEdge != null)
-            {
                 if (canvas_SetEdgePositions(sender, e))
                 {
                     return;
                 }
-            }
-            // ノードとの当たり判定
-            if (canvas_checkNodes(sender, e))
-            {
-                return;
-            }
-            // 枝との当たり判定
+            // 枝との当たり判定。あたったら横のパネルに詳細を表示
             if (canvas_checkEdges(sender, e))
             {
                 return;
@@ -293,6 +396,20 @@ namespace ConnectStudio
         bool canvas_checkNodes(object sender, MouseEventArgs e)
         {
             AppNode hitNode = GetAppNodeInCanvas(e.Location);
+
+            // [要修正] ノードを消す
+            if (e.Button == System.Windows.Forms.MouseButtons.Right)
+            {
+                if (hitNode != null)
+                {
+                    editingNode = null;
+                    processComboBox.Hide();
+                    appGraph.edges.RemoveAll(edge => edge.Src == hitNode || edge.Dst == hitNode);
+                    appGraph.nodes.Remove(hitNode);
+                    return true;
+                }
+            }
+
             // コンボボックスが出てないときにノードをクリックしたら
             if (processComboBox.Visible == false && hitNode != null)
             {
@@ -334,7 +451,7 @@ namespace ConnectStudio
                         e.Location.X - p1.X,
                         e.Location.Y - p1.Y);
                     double d = Math.Abs(n.X * p.X + n.Y * p.Y) / Math.Sqrt(n.X * n.X + n.Y * n.Y);
-                    if (d <= edgePen.Width / 2)
+                    if (d <= 4)
                     {
                         hitEdge = edge;
                         break;
@@ -364,6 +481,8 @@ namespace ConnectStudio
                 else
                 {
                     appendingEdge.Dst = hitNode;
+                    appendingEdge.ActionHandler.TriggerType = TriggerType.ContextMenu;
+                    appendingEdge.ActionHandler.ContextMenuText = "to " + appendingEdge.Dst.ProcessName;
                     appGraph.edges.Add(appendingEdge);
                     ShowEdgeDetail(appendingEdge);
                     appendingEdge = null;
@@ -407,7 +526,7 @@ namespace ConnectStudio
             {
                 var item = appListView.SelectedItems[0];
 
-                if (appendingNode != null && appendingNode.Text == item.Text)
+                if (appendingNode != null && appendingNode.ProcessName == item.Text)
                 {
                     // トグル
                     appendingNode = null;
@@ -418,7 +537,7 @@ namespace ConnectStudio
                 var img = appListView.LargeImageList.Images[item.Index];
                 appendingNode = new AppNode()
                 {
-                    Text = item.Text,
+                    ProcessName = item.Text,
                     Path = imgKey,
                     Icon = img
                 };
@@ -498,9 +617,8 @@ namespace ConnectStudio
             if (editingEdge != null)
             {
                 appGraph.edges.Remove(editingEdge);
-                ClearEdgeDetail(new AppEdge());
+                ClearEdgeDetail();
                 canvas.Invalidate();
-//                editingEdge.ActionHandler = new ActionHandler(this);
             }
             else
             {
@@ -516,8 +634,7 @@ namespace ConnectStudio
         private void processComboBox_DropDown(object sender, EventArgs e)
         {
             if (editingNode == null) return;
-            string processName = System.IO.Path.GetFileNameWithoutExtension(editingNode.Path);
-            UpdateProcessComboBox(processComboBox, processName);
+            UpdateProcessComboBox(processComboBox, editingNode.ProcessName);
         }
 
         void UpdateProcessComboBox(ComboBox pComboBox, string processName)
@@ -538,6 +655,7 @@ namespace ConnectStudio
                 {
                     try
                     {
+                        editingNode.Any = false;
                         editingNode.Process = Process.GetProcessById(pid);
                     }
                     catch (Exception ee)
@@ -547,6 +665,7 @@ namespace ConnectStudio
                 }
                 else
                 {
+                    editingNode.Any = true;
                     editingNode.Process = new Process();
                 }
             }
@@ -563,6 +682,15 @@ namespace ConnectStudio
                 editingEdge.ActionHandler = new ActionHandler(this);
                 canvas.Invalidate();
             }
+        }
+
+        private void newNToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            appGraph = new AppGraph();
+            canvas.Invalidate();
+            ClearEdgeDetail();
+            editingEdge = appendingEdge = null;
+            editingNode = appendingNode = null;
         }
     }
 }

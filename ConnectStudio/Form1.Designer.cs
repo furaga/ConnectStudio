@@ -29,8 +29,8 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            Sgry.Azuki.FontInfo fontInfo5 = new Sgry.Azuki.FontInfo();
-            Sgry.Azuki.FontInfo fontInfo6 = new Sgry.Azuki.FontInfo();
+            Sgry.Azuki.FontInfo fontInfo3 = new Sgry.Azuki.FontInfo();
+            Sgry.Azuki.FontInfo fontInfo4 = new Sgry.Azuki.FontInfo();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
             this.processComboBox = new System.Windows.Forms.ComboBox();
@@ -64,8 +64,10 @@
             this.startAllToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.stopAllToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.virtualContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
-            this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
-            this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            this.saveFileDialog = new System.Windows.Forms.SaveFileDialog();
+            this.openFileDialog = new System.Windows.Forms.OpenFileDialog();
+            this.newNToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -201,6 +203,7 @@
             this.textBoxContextMenu.Name = "textBoxContextMenu";
             this.textBoxContextMenu.Size = new System.Drawing.Size(436, 23);
             this.textBoxContextMenu.TabIndex = 1;
+            this.textBoxContextMenu.TextChanged += new System.EventHandler(this.EdgeDetailChanged);
             // 
             // radioHotKey
             // 
@@ -319,10 +322,10 @@
             | Sgry.Azuki.DrawingOption.HighlightsMatchedBracket)));
             this.srcScript.FirstVisibleLine = 0;
             this.srcScript.Font = new System.Drawing.Font("MS UI Gothic", 9F);
-            fontInfo5.Name = "MS UI Gothic";
-            fontInfo5.Size = 9;
-            fontInfo5.Style = System.Drawing.FontStyle.Regular;
-            this.srcScript.FontInfo = fontInfo5;
+            fontInfo3.Name = "MS UI Gothic";
+            fontInfo3.Size = 9;
+            fontInfo3.Style = System.Drawing.FontStyle.Regular;
+            this.srcScript.FontInfo = fontInfo3;
             this.srcScript.ForeColor = System.Drawing.Color.Black;
             this.srcScript.Location = new System.Drawing.Point(3, 202);
             this.srcScript.Name = "srcScript";
@@ -361,10 +364,10 @@
             | Sgry.Azuki.DrawingOption.HighlightsMatchedBracket)));
             this.dstScript.FirstVisibleLine = 0;
             this.dstScript.Font = new System.Drawing.Font("MS UI Gothic", 9F);
-            fontInfo6.Name = "MS UI Gothic";
-            fontInfo6.Size = 9;
-            fontInfo6.Style = System.Drawing.FontStyle.Regular;
-            this.dstScript.FontInfo = fontInfo6;
+            fontInfo4.Name = "MS UI Gothic";
+            fontInfo4.Size = 9;
+            fontInfo4.Style = System.Drawing.FontStyle.Regular;
+            this.dstScript.FontInfo = fontInfo4;
             this.dstScript.ForeColor = System.Drawing.Color.Black;
             this.dstScript.Location = new System.Drawing.Point(3, 382);
             this.dstScript.Name = "dstScript";
@@ -397,6 +400,8 @@
             // fileFToolStripMenuItem
             // 
             this.fileFToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.newNToolStripMenuItem,
+            this.toolStripSeparator2,
             this.openOToolStripMenuItem,
             this.saveSToolStripMenuItem,
             this.toolStripSeparator1,
@@ -408,26 +413,28 @@
             // openOToolStripMenuItem
             // 
             this.openOToolStripMenuItem.Name = "openOToolStripMenuItem";
-            this.openOToolStripMenuItem.Size = new System.Drawing.Size(123, 22);
+            this.openOToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.O)));
+            this.openOToolStripMenuItem.Size = new System.Drawing.Size(170, 22);
             this.openOToolStripMenuItem.Text = "Open(&O)";
             this.openOToolStripMenuItem.Click += new System.EventHandler(this.openOToolStripMenuItem_Click);
             // 
             // saveSToolStripMenuItem
             // 
             this.saveSToolStripMenuItem.Name = "saveSToolStripMenuItem";
-            this.saveSToolStripMenuItem.Size = new System.Drawing.Size(123, 22);
+            this.saveSToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.S)));
+            this.saveSToolStripMenuItem.Size = new System.Drawing.Size(170, 22);
             this.saveSToolStripMenuItem.Text = "Save(&S)";
             this.saveSToolStripMenuItem.Click += new System.EventHandler(this.saveSToolStripMenuItem_Click);
             // 
             // toolStripSeparator1
             // 
             this.toolStripSeparator1.Name = "toolStripSeparator1";
-            this.toolStripSeparator1.Size = new System.Drawing.Size(120, 6);
+            this.toolStripSeparator1.Size = new System.Drawing.Size(167, 6);
             // 
             // exitQToolStripMenuItem
             // 
             this.exitQToolStripMenuItem.Name = "exitQToolStripMenuItem";
-            this.exitQToolStripMenuItem.Size = new System.Drawing.Size(123, 22);
+            this.exitQToolStripMenuItem.Size = new System.Drawing.Size(170, 22);
             this.exitQToolStripMenuItem.Text = "Exit(&Q)";
             this.exitQToolStripMenuItem.Click += new System.EventHandler(this.exitQToolStripMenuItem_Click);
             // 
@@ -443,14 +450,16 @@
             // startAllToolStripMenuItem
             // 
             this.startAllToolStripMenuItem.Name = "startAllToolStripMenuItem";
-            this.startAllToolStripMenuItem.Size = new System.Drawing.Size(122, 22);
+            this.startAllToolStripMenuItem.ShortcutKeys = System.Windows.Forms.Keys.F5;
+            this.startAllToolStripMenuItem.Size = new System.Drawing.Size(177, 22);
             this.startAllToolStripMenuItem.Text = "Start All";
             this.startAllToolStripMenuItem.Click += new System.EventHandler(this.startAllToolStripMenuItem_Click);
             // 
             // stopAllToolStripMenuItem
             // 
             this.stopAllToolStripMenuItem.Name = "stopAllToolStripMenuItem";
-            this.stopAllToolStripMenuItem.Size = new System.Drawing.Size(122, 22);
+            this.stopAllToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Shift | System.Windows.Forms.Keys.F5)));
+            this.stopAllToolStripMenuItem.Size = new System.Drawing.Size(177, 22);
             this.stopAllToolStripMenuItem.Text = "Stop All";
             this.stopAllToolStripMenuItem.Click += new System.EventHandler(this.stopAllToolStripMenuItem_Click);
             // 
@@ -459,9 +468,22 @@
             this.virtualContextMenu.Name = "virtualContextMenu";
             this.virtualContextMenu.Size = new System.Drawing.Size(61, 4);
             // 
-            // openFileDialog1
+            // openFileDialog
             // 
-            this.openFileDialog1.FileName = "openFileDialog1";
+            this.openFileDialog.FileName = "openFileDialog1";
+            // 
+            // newNToolStripMenuItem
+            // 
+            this.newNToolStripMenuItem.Name = "newNToolStripMenuItem";
+            this.newNToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.N)));
+            this.newNToolStripMenuItem.Size = new System.Drawing.Size(170, 22);
+            this.newNToolStripMenuItem.Text = "New(&N)";
+            this.newNToolStripMenuItem.Click += new System.EventHandler(this.newNToolStripMenuItem_Click);
+            // 
+            // toolStripSeparator2
+            // 
+            this.toolStripSeparator2.Name = "toolStripSeparator2";
+            this.toolStripSeparator2.Size = new System.Drawing.Size(167, 6);
             // 
             // Form1
             // 
@@ -526,9 +548,11 @@
         private System.Windows.Forms.ListView appListView;
         private System.Windows.Forms.CheckBox FnCheckBoxHotKey;
         private System.Windows.Forms.Button applyActionHandlerButton;
-        private System.Windows.Forms.SaveFileDialog saveFileDialog1;
-        private System.Windows.Forms.OpenFileDialog openFileDialog1;
+        private System.Windows.Forms.SaveFileDialog saveFileDialog;
+        private System.Windows.Forms.OpenFileDialog openFileDialog;
         private System.Windows.Forms.ComboBox processComboBox;
+        private System.Windows.Forms.ToolStripMenuItem newNToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator2;
     }
 }
 
