@@ -59,7 +59,16 @@ namespace ConnectStudio
                                 appIcon = appIcon
                             };
                         }
-                        return null;
+                        else
+                        {
+                            // TODO
+                            Icon appIcon = new Icon("../../../Resources/dummy.ico");
+                            return new tmpImageItem()
+                            {
+                                Path = appPath,
+                                appIcon = appIcon
+                            };
+                        }
                     })
                 .Where(item => item != null).ToArray();
 
